@@ -19,8 +19,11 @@ int main(int argc, char** argv){
 		rank = SENDER;
 		run_host1(argc, argv);
 	}else if(strcmp(argv[1], "2") == 0){
-		rank = RECEIVER;
+		rank = SENDER;
 		run_host2(argc, argv);
+	}else if(strcmp(argv[1], "3") == 0){
+		rank = RECEIVER;
+		run_host3(argc, argv);
 	}else if(strcmp(argv[1], "unblock_switch") == 0){
 		rank = UNBLOCK_SWITCH;
 		init_switch(argc, argv);

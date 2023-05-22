@@ -1,22 +1,25 @@
 #!/bin/bash
 
-source topo.config
+#source topo.config
+nodes=(host1 host2 host3 switch)
+links=( host1 iface1 switch iface1 \
+        host2 iface1 switch iface2 \
+        host3 iface1 switch iface3 )
 
 function create_images()
 {
-	docker build -t mycontainer:v1.3 .
+	docker build -t mycontainer .
 }
 
 function create_nodes(){
 	echo "======================================"
 	echo "create docker container here"
 	
-	#用于vscode远程登录容器终端，使用时需要修改容器中的相关文件
-	port_cast=(8081 31 8082 32 8083 33)
+	port_cast=(8081 31 8082 32 8083 33 8084 34)
 	idx=0
 
 	for h in ${nodes[@]}; do
-		docker create --cap-add NET_ADMIN --name $h -p ${port_cast[$idx]}:${port_cast[$(($idx+1))]} mycontainer:v1.3
+		docker create --cap-add NET_ADMIN --name $h -p ${port_cast[$idx]}:${port_cast[$(($idx+1))]} mycontainer
 		idx=$(($idx+2))
 		echo create $h
 	done
@@ -45,41 +48,39 @@ function destroy_containers()
 		docker rm $h
 	done
 }
-
-function destroy_images()
-{
-	docker rmi mycontainer:v1.3
-}
-
 function create_links(){
 	echo "======================================"
 	echo "create links"
 
 	id=()
-	for((i=0;i<3;i++));
+	for((i=0;i<4;i++));
 	do
 		id[$i]=$(sudo docker inspect -f '{{.State.Pid}}' ${nodes[$i]})
 		ln -s /proc/${id[$i]}/ns/net /var/run/netns/${id[$i]}
 	done
-
-	id[3]=${id[1]}
-
+	node_id=()
+	node_id[0]=${id[0]}
+	node_id[1]=${id[3]}
+	node_id[2]=${id[1]}
+	node_id[3]=${id[3]}
+	node_id[4]=${id[2]}
+	node_id[5]=${id[3]}
  	total=${#links[*]}
-	ipAddr=("10.0.0.1/24" "10.0.0.2/24" "10.0.1.1/24" "10.0.1.2/24")
+	ipAddr=("10.0.0.1/24" "10.0.0.2/24" "10.0.1.1/24" "10.0.1.2/24" "10.0.2.1/24" "10.0.2.2/24")
 	idx=0
 
 	for ((i=0; i<$total; i=i+4)) do
-		#echo ${links[$i]}, ${links[$i+1]}, ${links[$i+2]}, ${links[$i+3]}
+		echo ${links[$i]}-${links[$i+1]}, ${links[$i+2]}-${links[$i+3]}
 		ip link add ${links[$i]}-${links[$i+1]} type veth peer name ${links[$i+2]}-${links[$i+3]}
 
-		ip link set ${links[$i]}-${links[$i+1]} netns ${id[$idx]}
-		ip netns exec ${id[$idx]} ip link set ${links[$i]}-${links[$i+1]} up
-		ip netns exec ${id[$idx]} ip addr add ${ipAddr[$idx]} dev ${links[$i]}-${links[$i+1]}
+		ip link set ${links[$i]}-${links[$i+1]} netns ${node_id[$idx]}
+		ip netns exec ${node_id[$idx]} ip link set ${links[$i]}-${links[$i+1]} up
+		ip netns exec ${node_id[$idx]} ip addr add ${ipAddr[$idx]} dev ${links[$i]}-${links[$i+1]}
 		idx=$(($idx+1))
 
-		ip link set ${links[$i+2]}-${links[$i+3]} netns ${id[$idx]}
-		ip netns exec ${id[$idx]} ip link set ${links[$i+2]}-${links[$i+3]} up
-		ip netns exec ${id[$idx]} ip addr add ${ipAddr[$idx]} dev ${links[$i+2]}-${links[$i+3]}
+		ip link set ${links[$i+2]}-${links[$i+3]} netns ${node_id[$idx]}
+		ip netns exec ${node_id[$idx]} ip link set ${links[$i+2]}-${links[$i+3]} up
+		ip netns exec ${node_id[$idx]} ip addr add ${ipAddr[$idx]} dev ${links[$i+2]}-${links[$i+3]}
 		idx=$(($idx+1))
 	done
 }
@@ -88,7 +89,7 @@ function create_links(){
 function destroy_links(){
 	ip link del host1-iface1
 	ip link del host2-iface1
-	
+	ip link del host3-iface1
 	for((i=0;i<3;i++));
 	do
 		id[$i]=$(sudo docker inspect -f '{{.State.Pid}}' ${nodes[$i]})
@@ -104,7 +105,7 @@ case $1 in
 		create_images
 		;;
 	"-cn")
-		#echo "create nodes"
+		echo "create nodes"
 		create_nodes
 		;;
 	"-rc")

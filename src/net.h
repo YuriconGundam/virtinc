@@ -32,6 +32,7 @@
 #define MAX_DELAY 0.5*CLOCKS_PER_SEC
 #define MAX_TASK_NUM 3
 #define MAX_SEND_BUF 20
+#define MAX_SWITCH_WND_SIZE 100
 
 /*******************************************************************************
  * put all data structures and function prototypes here in this file
@@ -115,6 +116,14 @@ struct _send_state{
     int last_seq_of_current_task; // 当前任务最后一个packet的序号
 };
 
+struct _switch_state
+{
+    uint8_t conn_id;
+    int ack_h1;
+    int ack_h2
+    ip_pcb_t ack_window_h1[MAX_SWITCH_WND_SIZE];
+    ip_pcb_t ack_window_h2[MAX_SWITCH_WND_SIZE];
+};
 typedef struct _task task_t;
 struct _task
 {
@@ -135,6 +144,7 @@ struct recv_state{
     int recv_until; // 按序接收到的最大seq_num
     void *addr; // 接收到的字符串地址
     int size; // recv_bytes长度
+    int start_addr;
     int last_seq_of_current_task; // 当前任务最后一个packet的序号
 };
 
@@ -159,6 +169,7 @@ typedef struct _rule rule_t;
 struct _rule
 {
     uint32_t src_ip; 
+    uint32_t dst_ip;
     uint32_t output_port;
     rule_t * next;
 };
@@ -166,10 +177,6 @@ struct _rule
 /*******************************************************************************
  * globals
  ******************************************************************************/
-static char * src_ip = "10.0.0.1";
-static char * dst_ip = "10.0.1.1";
-static char * file_name = "text.txt";
-
 int rank;
 pcap_handler grinder;
 pcap_t* pcap_handle;
@@ -179,13 +186,13 @@ char * dev_name;
 int conn_num;
 FILE * fp;
 pthread_mutex_t fp_mutex;
-pthread_t receive_daemon, sender_process_daemon, receiver_process_daemon;;
+pthread_t receive_daemon, receiver_process_daemon, sender_process_daemon;
 pthread_t sender_list[MAX_CONN_NUM];
 pthread_t receiver_list[MAX_CONN_NUM];
 
 struct _send_state  send_state;
 struct recv_state recv_states[MAX_CONN_NUM];
-
+struct _switch_state switch_state;
 // 接收缓冲区和发送缓冲区(host)，ip报文格式
 ip_pcb_t * receive_buffer_head, * last_receive_buffer;
 ip_pcb_t * send_buffer_head, * last_send_buffer;
@@ -204,6 +211,8 @@ int task_num; // 当前任务数, 最大为SLOT_NUM
  ******************************************************************************/
 
 //sender、receiver线程相关函数
+void computation1(char* x, char* y, uint16_t length);
+void computation2(char* x, char* y, uint16_t length);
 void init_task_queue();
 int init_conn(int conn_id); 
 int listen_ipc(int conn_id);
@@ -211,12 +220,12 @@ int send_ipc(int conn_id, char * text);
 int incp_send(int conn_id, void *addr, unsigned int size, char * src_ip, char * dst_ip); // 构造发送任务，加入队列，监听
 int incp_recv(int conn_id, void *addr, unsigned int size); // 构造recv_state，监听
 
-void * run_receiver(void *conn_id);
-void * run_sender(void *conn_id);
+void * run_receiver(void *arg);
+void * run_sender(void *arg);
 
 void run_host2(int argc, char** argv);
 void run_host1(int argc, char** argv);
-
+void run_host3(int argc, char** argv);
 //daemon线程相关函数
 void set_packet_processor();
 uint32_t open_pcap(char * dev_name, pcap_t ** pcap_handle);//返回网卡地址，也就是src_ip

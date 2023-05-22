@@ -1,8 +1,13 @@
-main.o: util.o host.o switch.o
-	gcc bin/util.o bin/host.o bin/switch.o main.c -o  bin/main.o -lpcap -pthread
-util.o:
-	cc -c -o bin/util.o util.c
-host.o:
-	cc -c -o bin/host.o host.c -lpcap
-switch.o:
-	cc -c -o bin/switch.o switch.c -lpcap -pthread
+main: main.o util.o host.o switch.o
+	cc -o main main.o util.o host.o switch.o -lpcap -pthread
+	
+main.o:net.h
+	cc -c main.c
+util.o: util.c
+	cc -c util.c
+host.o: util.h host.c net.h
+	cc -c host.c -lpcap
+switch.o:switch.c net.h
+	cc -c switch.c -lpcap -pthread
+clean :
+	rm main util.o host.o switch.o main.o
